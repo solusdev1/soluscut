@@ -1,0 +1,109 @@
+// Hydra Creator — schema do MVP
+// Payloads de análise (keyframes, VAD, transcript) ficam em Json nativo:
+// o analyzer grava/lê em bloco e evita joins desnecessários no MVP.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  UPLOADED
+  ANALYZING
+  ANALYZED
+  TRANSFORMING
+  READY
+  FAILED
+}
+
+enum ClipStatus {
+  DRAFT
+  TRANSFORMED
+  SCORED
+  EXPORTED
+}
+
+model Project {
+  id                String        @id @default(cuid())
+  userId            String // sem FK — auth fora de escopo no MVP
+  title             String
+  sourceVideoUrl    String
+  sourceDurationSec Float
+  sourceWidth       Int?
+  sourceHeight      Int?
+  sourceCodec       String?
+  status            ProjectStatus @default(UPLOADED)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  clips Clip[]
+
+  @@index([userId])
+}
+
+model Clip {
+  id       String  @id @default(cuid())
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  startSec Float
+  endSec   Float
+  title    String?
+
+  // Saídas do worker de análise (formatos definidos em app/analyzer/models.py)
+  cropKeyframesJson Json? // { source_width, source_height, keyframes: [{t_sec,x,y,w,h,confidence,source}] }
+  vadSegmentsJson   Json? // { segments: [{start_sec,end_sec,is_speech}] }
+  transcriptJson    Json? // { language, words: [{word,start_sec,end_sec,confidence}], segments: [...] }
+
+  outputVideoUrl String?
+  status         ClipStatus @default(DRAFT)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  transformationConfig TransformationConfig?
+  complianceScore      ComplianceScore?
+
+  @@index([projectId])
+}
+
+model TransformationConfig {
+  id     String @id @default(cuid())
+  clip   Clip   @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  clipId String @unique
+
+  // Motor de obfuscação visual
+  zoomMinScale    Float @default(1.0)
+  zoomMaxScale    Float @default(1.15)
+  zoomIntervalSec Float @default(12.0) // randomizado em 10–15s; valor efetivo persistido
+  grainOpacity    Float @default(0.05) // 0.03–0.07
+  colorGradeParams Json? // { contrast, saturation, gamma, temperature }
+
+  // Audio safety layer
+  pitchShiftPercent   Float   @default(1.5) // -1.5 a +1.5
+  speedPercent        Float   @default(2.0) // -2 a +2
+  bgmTrackUrl         String?
+  bgmDuckSpeechLevel  Float   @default(0.15)
+  bgmDuckSilenceLevel Float   @default(0.80)
+  bgmCrossfadeSec     Float   @default(0.5)
+
+  // Camada semântica
+  captionStyle Json? // { fontFamily, highlightColor, popInScale, keywordHighlight }
+
+  renderEngine String   @default("nvenc") // nvenc | libx264 (registra o encoder efetivo)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ComplianceScore {
+  id     String @id @default(cuid())
+  clip   Clip   @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  clipId String @unique
+
+  overallScore    Float // 0–100
+  breakdownJson   Json // { crop_variation_score, audio_shift_score, visual_effects_score, bgm_score, caption_coverage_score, weights }
+  passedThreshold Boolean
+  computedAt      DateTime @default(now())
+}

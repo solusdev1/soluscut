@@ -1,0 +1,25 @@
+# Core ML/CV
+# Para GPU NVIDIA: instale torch com CUDA primeiro:
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+torch>=2.1.0
+torchaudio>=2.1.0
+# mediapipe recente usa a Tasks API (mp.tasks.python.vision.FaceDetector);
+# o analyzer baixa o modelo blaze_face_short_range.tflite para .models/ na 1a execução.
+mediapipe>=0.10.9
+opencv-python>=4.9.0
+# mediapipe/opencv recentes exigem numpy 2.x; deixamos sem teto para evitar conflito.
+numpy>=1.26.0
+
+# Audio analysis
+silero-vad>=5.0
+faster-whisper>=1.0.0
+
+# Video tooling
+ffmpeg-python>=0.2.0
+
+# API / models
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.6.0
+python-dotenv>=1.0.0
+tqdm>=4.66.0

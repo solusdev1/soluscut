@@ -1,0 +1,13 @@
+{
+  "video_id": "sample_input",
+  "source_width": 1920,
+  "source_height": 1080,
+  "keyframes": [
+    {"t_sec": 0.0, "x": 640, "y": 0, "w": 606, "h": 1080, "confidence": 0.92, "source": "face"},
+    {"t_sec": 2.0, "x": 662, "y": 0, "w": 606, "h": 1080, "confidence": 0.90, "source": "face"},
+    {"t_sec": 4.0, "x": 700, "y": 0, "w": 606, "h": 1080, "confidence": 0.88, "source": "face"},
+    {"t_sec": 6.0, "x": 655, "y": 0, "w": 606, "h": 1080, "confidence": 0.85, "source": "face"},
+    {"t_sec": 8.0, "x": 610, "y": 0, "w": 606, "h": 1080, "confidence": 0.80, "source": "gameplay"},
+    {"t_sec": 10.0, "x": 640, "y": 0, "w": 606, "h": 1080, "confidence": 0.83, "source": "face"}
+  ]
+}

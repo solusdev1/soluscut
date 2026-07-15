@@ -1,0 +1,15 @@
+{
+  "zoomMinScale": 1.0,
+  "zoomMaxScale": 1.15,
+  "zoomIntervalSec": 12.0,
+  "grainOpacity": 0.05,
+  "colorGradeParams": {"contrast": 1.05, "saturation": 1.05, "gamma": 0.98},
+  "pitchShiftPercent": 1.5,
+  "speedPercent": 2.0,
+  "bgmTrackUrl": "assets/bgm/sample_bgm.mp3",
+  "bgmDuckSpeechLevel": 0.15,
+  "bgmDuckSilenceLevel": 0.80,
+  "bgmCrossfadeSec": 0.5,
+  "captionStyle": {"fontFamily": "Montserrat", "highlightColor": "#FFF700", "popInScale": 1.2, "keywordHighlight": true},
+  "renderEngine": "nvenc"
+}

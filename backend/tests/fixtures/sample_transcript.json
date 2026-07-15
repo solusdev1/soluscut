@@ -1,0 +1,22 @@
+{
+  "language": "pt",
+  "words": [
+    {"word": "Olha", "start_sec": 1.2, "end_sec": 1.5, "confidence": 0.97},
+    {"word": "só", "start_sec": 1.5, "end_sec": 1.7, "confidence": 0.95},
+    {"word": "essa", "start_sec": 1.7, "end_sec": 2.0, "confidence": 0.96},
+    {"word": "explosão", "start_sec": 2.0, "end_sec": 2.8, "confidence": 0.98},
+    {"word": "incrível", "start_sec": 2.8, "end_sec": 3.6, "confidence": 0.94},
+    {"word": "que", "start_sec": 3.6, "end_sec": 3.8, "confidence": 0.9},
+    {"word": "aconteceu", "start_sec": 3.8, "end_sec": 4.8, "confidence": 0.93},
+    {"word": "agora", "start_sec": 5.6, "end_sec": 6.1, "confidence": 0.95},
+    {"word": "presta", "start_sec": 6.1, "end_sec": 6.6, "confidence": 0.92},
+    {"word": "atenção", "start_sec": 6.6, "end_sec": 7.4, "confidence": 0.96},
+    {"word": "nos", "start_sec": 7.4, "end_sec": 7.6, "confidence": 0.9},
+    {"word": "detalhes", "start_sec": 7.6, "end_sec": 8.5, "confidence": 0.97},
+    {"word": "finais", "start_sec": 8.5, "end_sec": 9.4, "confidence": 0.94}
+  ],
+  "segments": [
+    {"text": "Olha só essa explosão incrível que aconteceu", "start_sec": 1.2, "end_sec": 4.8, "words": []},
+    {"text": "agora presta atenção nos detalhes finais", "start_sec": 5.6, "end_sec": 9.4, "words": []}
+  ]
+}

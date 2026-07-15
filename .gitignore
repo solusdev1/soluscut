@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+.next/
+.next-build/
+out/
+*.tsbuildinfo
+.remotion-smoke/
+
+# Env
+.env
+.env.local
+
+# Media / outputs
+backend/app/transform/assets/sample_input.mp4
+backend/app/transform/assets/bgm/*.mp3
+backend/output/
+backend/tests/fixtures/out/
+frontend/public/sample_input.mp4
+*.mp4
+*.mkv
+*.wav
+artifacts/
+
+# Models cache
+.models/
+*.pt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local workspace tooling
+.agents/
+.claude/
