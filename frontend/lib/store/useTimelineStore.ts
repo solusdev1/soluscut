@@ -51,10 +51,18 @@ function defaultSplitCrops(sourceW: number, sourceH: number, ratio: number) {
 
 export interface TimelineState {
   projectId: string | null;
+  videoId: string | null; // id do vídeo no backend (para renderizar)
   videoUrl: string | null;
   videoDurationSec: number;
   sourceWidth: number;
   sourceHeight: number;
+
+  // Trecho selecionado (highlight aberto no editor); null = vídeo inteiro
+  clipStartSec: number | null;
+  clipEndSec: number | null;
+
+  // Preset de legenda ("mozi" | "beasty" | "karaoke" | "popline" | "none")
+  captionPreset: string;
 
   playheadSec: number;
   isPlaying: boolean;
@@ -70,6 +78,8 @@ export interface TimelineState {
   splitRatio: number; // fração da altura para a faixa de cima
   splitTopCrop: CropRect | null;
   splitBottomCrop: CropRect | null;
+  pipCrop: CropRect | null;
+  pipScale: number;
 
   // ações
   setPlayhead: (sec: number) => void;
@@ -81,8 +91,13 @@ export interface TimelineState {
   setLayoutMode: (mode: LayoutMode) => void;
   setSplitCrop: (which: "top" | "bottom", patch: Partial<CropRect>) => void;
   setSplitRatioValue: (ratio: number) => void;
+  setPipCrop: (patch: Partial<CropRect>) => void;
+  setPipScale: (scale: number) => void;
+  setClipRange: (startSec: number | null, endSec: number | null) => void;
+  setCaptionPreset: (preset: string) => void;
   loadAnalysisData: (data: {
     projectId?: string;
+    videoId?: string;
     videoUrl: string;
     videoDurationSec: number;
     sourceWidth: number;
@@ -121,10 +136,15 @@ export function interpolateCrop(keyframes: CropKeyframe[], tSec: number): CropKe
 
 export const useTimelineStore = create<TimelineState>((set, get) => ({
   projectId: null,
+  videoId: null,
   videoUrl: null,
   videoDurationSec: 0,
   sourceWidth: 1920,
   sourceHeight: 1080,
+
+  clipStartSec: null,
+  clipEndSec: null,
+  captionPreset: "mozi",
 
   playheadSec: 0,
   isPlaying: false,
@@ -139,6 +159,8 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   splitRatio: 0.5,
   splitTopCrop: null,
   splitBottomCrop: null,
+  pipCrop: null,
+  pipScale: 0.28,
 
   setPlayhead: (sec) =>
     set({ playheadSec: Math.max(0, Math.min(sec, get().videoDurationSec)) }),
@@ -147,9 +169,10 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   setLayoutMode: (mode) =>
     set((state) => {
-      if (mode === "split" && (!state.splitTopCrop || !state.splitBottomCrop)) {
+      if ((mode === "split" || mode === "screenshare" || mode === "gameplay" || mode === "three-person") && (!state.splitTopCrop || !state.splitBottomCrop)) {
         const { top, bottom } = defaultSplitCrops(state.sourceWidth, state.sourceHeight, state.splitRatio);
-        return { layoutMode: mode, splitTopCrop: top, splitBottomCrop: bottom };
+        const pipCrop = state.pipCrop ?? computeSplitCrop(state.sourceWidth, state.sourceHeight, 0.65, 0.5);
+        return { layoutMode: mode, splitTopCrop: top, splitBottomCrop: bottom, pipCrop };
       }
       return { layoutMode: mode };
     }),
@@ -178,6 +201,21 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       };
     }),
 
+  setPipCrop: (patch) =>
+    set((state) => ({ pipCrop: state.pipCrop ? { ...state.pipCrop, ...patch } : null })),
+  setPipScale: (scale) => set({ pipScale: Math.max(0.16, Math.min(scale, 0.46)) }),
+
+  // Abrir o editor já no trecho selecionado: define o range e move o playhead.
+  setClipRange: (startSec, endSec) =>
+    set((state) => ({
+      clipStartSec: startSec,
+      clipEndSec: endSec,
+      playheadSec:
+        startSec != null ? Math.max(0, Math.min(startSec, state.videoDurationSec)) : state.playheadSec,
+    })),
+
+  setCaptionPreset: (preset) => set({ captionPreset: preset }),
+
   updateCropKeyframe: (tSec, patch) =>
     set((state) => ({
       cropKeyframes: state.cropKeyframes.map((k) =>
@@ -201,13 +239,15 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         source: "face" as const,
       };
       const next: CropKeyframe = { ...base, ...patch, tSec: t };
-      if (idx >= 0) {
-        const copy = [...state.cropKeyframes];
-        copy[idx] = next;
-        return { cropKeyframes: copy };
+      // Ao editar manualmente, a escolha do usuário passa a valer para todo
+      // o clipe; não continuamos a interpolar os keyframes automáticos.
+      if (state.cropKeyframes.length > 0) {
+        return {
+          cropKeyframes: state.cropKeyframes.map((keyframe) => ({ ...next, tSec: keyframe.tSec })),
+        };
       }
       return {
-        cropKeyframes: [...state.cropKeyframes, next].sort((a, b) => a.tSec - b.tSec),
+        cropKeyframes: [next],
       };
     }),
 
@@ -221,6 +261,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       const { top, bottom } = defaultSplitCrops(data.sourceWidth, data.sourceHeight, state.splitRatio);
       return {
         projectId: data.projectId ?? null,
+        videoId: data.videoId ?? null,
         videoUrl: data.videoUrl,
         videoDurationSec: data.videoDurationSec,
         sourceWidth: data.sourceWidth,
@@ -229,9 +270,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         vadSegments: data.vadSegments,
         transcriptWords: data.transcriptWords,
         playheadSec: 0,
+        clipStartSec: null,
+        clipEndSec: null,
         // Recalcula os crops split para as dimensões do novo vídeo.
         splitTopCrop: top,
         splitBottomCrop: bottom,
+        pipCrop: computeSplitCrop(data.sourceWidth, data.sourceHeight, 0.65, 0.5),
       };
     }),
 }));

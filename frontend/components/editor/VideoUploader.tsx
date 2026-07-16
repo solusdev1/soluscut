@@ -2,7 +2,16 @@
 
 import React, { useRef, useState } from "react";
 import { analyzeVideo } from "@/lib/api";
+import {
+  mapCropKeyframes,
+  mapTranscriptWords,
+  mapVadSegments,
+} from "@/lib/mappers/analyzerJsonToState";
 import { useTimelineStore } from "@/lib/store/useTimelineStore";
+import rawCrop from "@/mocks/mock_crop_keyframes.json";
+import rawVad from "@/mocks/mock_vad_segments.json";
+import rawTranscript from "@/mocks/mock_transcript.json";
+import { setRenderSource } from "@/lib/renderSource";
 
 export const VideoUploader: React.FC = () => {
   const loadAnalysisData = useTimelineStore((state) => state.loadAnalysisData);
@@ -11,9 +20,23 @@ export const VideoUploader: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
 
+  const loadDemoAnalysis = (videoUrl: string, durationSec: number) => {
+    const crop = mapCropKeyframes(rawCrop);
+    loadAnalysisData({
+      videoUrl,
+      videoDurationSec: Math.max(1, durationSec || 10),
+      sourceWidth: crop.sourceWidth,
+      sourceHeight: crop.sourceHeight,
+      cropKeyframes: crop.keyframes,
+      vadSegments: mapVadSegments(rawVad),
+      transcriptWords: mapTranscriptWords(rawTranscript),
+    });
+  };
+
   const onSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setRenderSource(file);
     setFileName(file.name);
     setError(null);
     setStatus("analyzing");
@@ -22,6 +45,7 @@ export const VideoUploader: React.FC = () => {
     try {
       const analysis = await analyzeVideo(file);
       loadAnalysisData({
+        videoId: analysis.videoId,
         videoUrl: objectUrl,
         videoDurationSec: analysis.durationSec,
         sourceWidth: analysis.sourceWidth,
@@ -32,8 +56,19 @@ export const VideoUploader: React.FC = () => {
       });
       setStatus("idle");
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
-      setStatus("error");
+      // Permite testar o editor sem instalar o worker de análise local.
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        loadDemoAnalysis(objectUrl, video.duration);
+        setError("Análise local indisponível — usando dados de demonstração.");
+        setStatus("idle");
+      };
+      video.onerror = () => {
+        setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
+        setStatus("error");
+      };
+      video.src = objectUrl;
     }
   };
 

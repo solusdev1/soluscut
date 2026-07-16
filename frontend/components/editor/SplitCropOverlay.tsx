@@ -9,17 +9,18 @@ interface Props {
   displayHeight: number;
 }
 
-type ResizeHandle = "nw" | "ne" | "sw" | "se";
+type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 type Interaction =
   | { mode: "move"; px: number; py: number; rect: CropRect }
   | { mode: "resize"; handle: ResizeHandle; px: number; py: number; rect: CropRect };
 
-const HANDLES: ResizeHandle[] = ["nw", "ne", "sw", "se"];
+const HANDLES: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
 /** Seleções independentes das faixas superior e inferior do modo dividido. */
 export const SplitCropOverlay: React.FC<Props> = ({ displayWidth, displayHeight }) => {
-  const { splitTopCrop, splitBottomCrop, sourceWidth, sourceHeight } = useTimelineStore();
+  const { splitTopCrop, splitBottomCrop, pipCrop, sourceWidth, sourceHeight, layoutMode } = useTimelineStore();
   const setSplitCrop = useTimelineStore((state) => state.setSplitCrop);
+  const setPipCrop = useTimelineStore((state) => state.setPipCrop);
   const setDragging = useTimelineStore((state) => state.setDraggingCrop);
   const scaleX = displayWidth / sourceWidth;
   const scaleY = displayHeight / sourceHeight;
@@ -30,7 +31,7 @@ export const SplitCropOverlay: React.FC<Props> = ({ displayWidth, displayHeight 
         <SplitRect
           rect={splitTopCrop}
           color="#00e5ff"
-          label="CIMA"
+          label={layoutMode === "gameplay" ? "CÂMERA" : layoutMode === "screenshare" ? "TELA" : layoutMode === "three-person" ? "PESSOA 1" : "CIMA"}
           scaleX={scaleX}
           scaleY={scaleY}
           sourceWidth={sourceWidth}
@@ -43,12 +44,25 @@ export const SplitCropOverlay: React.FC<Props> = ({ displayWidth, displayHeight 
         <SplitRect
           rect={splitBottomCrop}
           color="#f59e0b"
-          label="BAIXO"
+          label={layoutMode === "gameplay" ? "GAMEPLAY" : layoutMode === "screenshare" ? "TELA PRINCIPAL" : layoutMode === "three-person" ? "PESSOA 3" : "BAIXO"}
           scaleX={scaleX}
           scaleY={scaleY}
           sourceWidth={sourceWidth}
           sourceHeight={sourceHeight}
           onChange={(patch) => setSplitCrop("bottom", patch)}
+          onDragState={setDragging}
+        />
+      )}
+      {layoutMode === "screenshare" && pipCrop && (
+        <SplitRect
+          rect={pipCrop}
+          color="#f59e0b"
+          label="CÂMERA PEQUENA"
+          scaleX={scaleX}
+          scaleY={scaleY}
+          sourceWidth={sourceWidth}
+          sourceHeight={sourceHeight}
+          onChange={setPipCrop}
           onDragState={setDragging}
         />
       )}
@@ -113,22 +127,20 @@ function SplitRect({
       }
 
       const { handle, rect: initial } = active;
-      const aspect = initial.w / initial.h;
-      const horizontalWidth = initial.w + (handle.includes("e") ? dx : -dx);
-      const verticalWidth = (initial.h + (handle.includes("s") ? dy : -dy)) * aspect;
-      const proposedWidth = Math.abs(horizontalWidth - initial.w) >= Math.abs(verticalWidth - initial.w)
-        ? horizontalWidth
-        : verticalWidth;
-      const horizontalLimit = handle.includes("e") ? sourceWidth - initial.x : initial.x + initial.w;
-      const verticalLimit = (handle.includes("s") ? sourceHeight - initial.y : initial.y + initial.h) * aspect;
-      const maxWidth = Math.max(1, Math.min(horizontalLimit, verticalLimit));
-      const minWidth = Math.min(Math.max(96, sourceWidth * 0.12), maxWidth);
-      const width = Math.max(minWidth, Math.min(proposedWidth, maxWidth));
-      const height = width / aspect;
+      const minWidth = Math.min(Math.max(96, sourceWidth * 0.08), sourceWidth);
+      const minHeight = Math.min(Math.max(96, sourceHeight * 0.08), sourceHeight);
+      let width = initial.w;
+      let height = initial.h;
+      let x = initial.x;
+      let y = initial.y;
+      if (handle.includes("e")) width = Math.max(minWidth, Math.min(initial.w + dx, sourceWidth - initial.x));
+      if (handle.includes("w")) { width = Math.max(minWidth, Math.min(initial.w - dx, initial.x + initial.w)); x = initial.x + initial.w - width; }
+      if (handle.includes("s")) height = Math.max(minHeight, Math.min(initial.h + dy, sourceHeight - initial.y));
+      if (handle.includes("n")) { height = Math.max(minHeight, Math.min(initial.h - dy, initial.y + initial.h)); y = initial.y + initial.h - height; }
 
       onChange({
-        x: Math.round(handle.includes("w") ? initial.x + initial.w - width : initial.x),
-        y: Math.round(handle.includes("n") ? initial.y + initial.h - height : initial.y),
+        x: Math.round(x),
+        y: Math.round(y),
         w: Math.round(width),
         h: Math.round(height),
       });

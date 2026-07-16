@@ -181,12 +181,30 @@ def _find_point_of_interest(frame, detector, prev_gray):
 # VAD (Silero)
 # ---------------------------------------------------------------------------
 
+def _read_wav_tensor(audio_wav_path: str):
+    """Carrega WAV PCM16 mono como tensor float32 normalizado.
+
+    Substitui silero_vad.read_audio, que depende do I/O do torchaudio
+    (quebrado em torchaudio>=2.9 sem torchcodec). O WAV já vem do ffmpeg
+    em 16kHz mono PCM16, então a leitura direta é suficiente.
+    """
+    import wave
+
+    import numpy as np
+    import torch
+
+    with wave.open(audio_wav_path, "rb") as wf:
+        raw = wf.readframes(wf.getnframes())
+    samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    return torch.from_numpy(samples)
+
+
 def detect_voice_activity(audio_wav_path: str, total_duration_sec: float) -> VADResult:
     """Roda Silero VAD no WAV 16kHz e retorna segmentos contíguos de fala/silêncio."""
-    from silero_vad import get_speech_timestamps, load_silero_vad, read_audio
+    from silero_vad import get_speech_timestamps, load_silero_vad
 
     model = load_silero_vad()
-    wav = read_audio(audio_wav_path, sampling_rate=16000)
+    wav = _read_wav_tensor(audio_wav_path)
     speech_ts = get_speech_timestamps(wav, model, sampling_rate=16000, return_seconds=True)
 
     segments: list[VADSegment] = []
@@ -267,8 +285,19 @@ def analyze_video(
     interval_sec: float = 2.0,
     whisper_model_size: str | None = None,
     whisper_device: str | None = None,
+    min_clip_sec: float = 15.0,
+    max_clip_sec: float = 60.0,
+    progress_cb=None,
 ) -> AnalysisResult:
-    """Roda o pipeline completo de análise e grava os 3 JSONs em output_dir."""
+    """Roda o pipeline completo de análise e grava os 4 JSONs em output_dir.
+
+    `progress_cb(fraction, step)` é opcional — usado pela API para expor o
+    andamento do job ao frontend.
+    """
+    def report(fraction: float, step: str) -> None:
+        if progress_cb is not None:
+            progress_cb(fraction, step)
+
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -276,6 +305,7 @@ def analyze_video(
     whisper_device = whisper_device or os.getenv("WHISPER_DEVICE", "auto")
     max_duration = float(os.getenv("MAX_VIDEO_DURATION_SEC", str(4 * 3600)))
 
+    report(0.02, "Extraindo metadados")
     logger.info("Extraindo metadados de %s", video_path)
     metadata = extract_metadata(video_path, max_duration_sec=max_duration)
     logger.info(
@@ -284,19 +314,24 @@ def analyze_video(
         metadata.video_codec, metadata.audio_codec,
     )
 
+    report(0.08, "Detectando enquadramento (crop 9:16)")
     logger.info("Detectando crop keyframes (MediaPipe, a cada %.1fs)...", interval_sec)
     crop_result = detect_crop_keyframes(video_path, metadata, interval_sec=interval_sec)
     crop_path = out / "crop_keyframes.json"
     crop_path.write_text(crop_result.model_dump_json(indent=2), encoding="utf-8")
     logger.info("→ %s (%d keyframes)", crop_path, len(crop_result.keyframes))
 
+    audio_wav: str | None = None
     if metadata.has_audio:
+        report(0.40, "Extraindo áudio")
         logger.info("Extraindo áudio para análise...")
         audio_wav = extract_audio_wav(video_path)
 
+        report(0.48, "Detectando fala (VAD)")
         logger.info("Rodando Silero VAD...")
         vad_result = detect_voice_activity(audio_wav, metadata.duration_sec)
 
+        report(0.55, "Transcrevendo (Whisper)")
         logger.info("Transcrevendo com faster-whisper (%s)...", whisper_model_size)
         transcript_result = transcribe(audio_wav, model_size=whisper_model_size, device=whisper_device)
     else:
@@ -314,11 +349,28 @@ def analyze_video(
     transcript_path.write_text(transcript_result.model_dump_json(indent=2), encoding="utf-8")
     logger.info("→ %s (%d palavras, idioma=%s)", transcript_path, len(transcript_result.words), transcript_result.language)
 
+    report(0.92, "Pontuando melhores cortes")
+    from app.highlights import detect_highlights
+
+    highlights = detect_highlights(
+        transcript=json.loads(transcript_path.read_text(encoding="utf-8")),
+        vad=json.loads(vad_path.read_text(encoding="utf-8")),
+        audio_wav_path=audio_wav,
+        duration_sec=metadata.duration_sec,
+        min_dur=min_clip_sec,
+        max_dur=max_clip_sec,
+    )
+    highlights_path = out / "highlights.json"
+    highlights_path.write_text(json.dumps(highlights, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("→ %s (%d highlights)", highlights_path, len(highlights["highlights"]))
+
+    report(1.0, "Análise concluída")
     return AnalysisResult(
         metadata=metadata,
         crop_keyframes_path=str(crop_path),
         vad_segments_path=str(vad_path),
         transcript_path=str(transcript_path),
+        highlights_path=str(highlights_path),
     )
 
 
@@ -348,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
         "crop_keyframes": result.crop_keyframes_path,
         "vad_segments": result.vad_segments_path,
         "transcript": result.transcript_path,
+        "highlights": result.highlights_path,
     }, indent=2))
     return 0
 

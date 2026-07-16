@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Player } from "@remotion/player";
+import { Player, type PlayerRef } from "@remotion/player";
 import { useTimelineStore } from "@/lib/store/useTimelineStore";
 import { CompositionCropPreview } from "./remotion/CompositionCropPreview";
 import { CropOverlay } from "./CropOverlay";
@@ -16,11 +16,15 @@ function useCompositionProps() {
       cropKeyframes: state.cropKeyframes,
       splitTop: state.splitTopCrop,
       splitBottom: state.splitBottomCrop,
+      pipCrop: state.pipCrop,
+      pipScale: state.pipScale,
       splitRatio: state.splitRatio,
       sourceWidth: state.sourceWidth,
       sourceHeight: state.sourceHeight,
+      transcriptWords: state.transcriptWords,
+      captionPreset: state.captionPreset,
     }),
-    [state.videoUrl, state.layoutMode, state.cropKeyframes, state.splitTopCrop, state.splitBottomCrop, state.splitRatio, state.sourceWidth, state.sourceHeight],
+    [state.videoUrl, state.layoutMode, state.cropKeyframes, state.splitTopCrop, state.splitBottomCrop, state.pipCrop, state.pipScale, state.splitRatio, state.sourceWidth, state.sourceHeight, state.transcriptWords, state.captionPreset],
   );
 
   return { state, inputProps };
@@ -69,8 +73,8 @@ export const SourcePreview: React.FC = () => {
             onEnded={() => setPlaying(false)}
             controls
           />
-          {state.layoutMode === "single" && <CropOverlay displayWidth={displayWidth} displayHeight={displayHeight} />}
-          {state.layoutMode === "split" && <SplitCropOverlay displayWidth={displayWidth} displayHeight={displayHeight} />}
+          {state.layoutMode !== "split" && state.layoutMode !== "screenshare" && <CropOverlay displayWidth={displayWidth} displayHeight={displayHeight} label={state.layoutMode === "three-person" ? "PESSOA 2" : "9:16 · AJUSTÁVEL"} />}
+          {(state.layoutMode === "split" || state.layoutMode === "three-person" || state.layoutMode === "gameplay" || state.layoutMode === "screenshare") && <SplitCropOverlay displayWidth={displayWidth} displayHeight={displayHeight} />}
         </>
       ) : (
         <div className="empty-preview h-full">Carregue um vídeo para começar</div>
@@ -82,11 +86,23 @@ export const SourcePreview: React.FC = () => {
 export const OutputPreview: React.FC = () => {
   const { state, inputProps } = useCompositionProps();
   const durationInFrames = Math.max(1, Math.round(state.videoDurationSec * 30));
+  const playerRef = useRef<PlayerRef>(null);
+
+  // Segue o playhead quando pausado — abrir um highlight posiciona o preview no trecho.
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player || state.isPlaying) return;
+    const targetFrame = Math.round(state.playheadSec * 30);
+    if (Math.abs(player.getCurrentFrame() - targetFrame) > 2) {
+      player.seekTo(targetFrame);
+    }
+  }, [state.playheadSec, state.isPlaying]);
 
   return (
     <div className="reference-output-shell">
       {state.videoUrl ? (
         <Player
+          ref={playerRef}
           component={CompositionCropPreview}
           inputProps={inputProps}
           durationInFrames={durationInFrames}

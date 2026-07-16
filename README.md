@@ -7,8 +7,46 @@ SaaS que transforma vídeos horizontais longos em clipes verticais 9:16 com **Mo
 ## Estrutura
 
 ```
-backend/   Python: analyzer (MediaPipe + Silero VAD + faster-whisper), transform chain (FFmpeg), compliance scoring, schema Prisma
+backend/   Python: analyzer (MediaPipe + Silero VAD + faster-whisper), highlights com score,
+           renderizador FFmpeg (crop dinâmico + legendas .ass), API FastAPI com jobs, compliance
 frontend/  Next.js 14 + Tailwind + Zustand + Remotion Player: TimelineEditor com preview split-screen
+```
+
+## Fluxo da API (v0.2)
+
+```
+POST /videos                  upload → análise em background (retorna video_id + job_id)
+GET  /jobs/{job_id}           progresso do job (status, fração 0–1, etapa)
+GET  /videos/{video_id}       metadados + crop/vad/transcript + highlights com nota 0–100
+GET  /videos/{video_id}/file  vídeo original (fonte para o player)
+POST /videos/{video_id}/render  render do trecho: {start_sec, end_sec, with_captions, bgm_id…}
+GET  /renders/{render_id}/file  download do clipe final 1080x1920 com legendas
+```
+
+Uploads e artefatos ficam em `backend/storage/` (`HYDRA_STORAGE_DIR` para mudar).
+O frontend (`/editor`) usa esse fluxo: importa o vídeo → mostra os melhores cortes
+pontuados pela IA → "Editar clipe" abre o editor já no trecho, ou "Gerar com IA"
+entrega o clipe pronto com legendas animadas.
+
+Rodar a API:
+
+```bash
+cd backend
+.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+```
+
+Render via CLI (sem API):
+
+```bash
+python -m app.render.renderer --input video.mp4 --analysis-dir output/analysis \
+  --output clip.mp4 --start 12.5 --end 42.0
+```
+
+Highlights via CLI:
+
+```bash
+python -m app.highlights.highlights --transcript t.json --vad v.json \
+  --audio audio.wav --duration 300
 ```
 
 ## Setup — Backend

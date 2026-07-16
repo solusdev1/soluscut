@@ -9,12 +9,15 @@ export type CropSource = "face" | "gameplay" | "center";
  *  - "split":  tela dividida cima/baixo (duas pessoas / dois enquadramentos).
  *  - "fit":    frame inteiro centralizado com fundo desfocado (sem cortar nada).
  */
-export type LayoutMode = "single" | "split" | "fit";
+export type LayoutMode = "single" | "split" | "fit" | "three-person" | "gameplay" | "screenshare";
 
 export const LAYOUT_LABELS: Record<LayoutMode, string> = {
   single: "Preencher",
   split: "Tela dividida",
   fit: "Ajustar + fundo",
+  "three-person": "3 pessoas",
+  gameplay: "Gameplay",
+  screenshare: "Tela compartilhada",
 };
 
 /** Retângulo de crop em coordenadas do vídeo fonte (px). */
@@ -53,6 +56,19 @@ export interface TranscriptWord {
   startSec: number;
   endSec: number;
   confidence: number;
+}
+
+/** Melhor corte sugerido pela IA, com pontuação 0–100 e motivo. */
+export interface Highlight {
+  id: string;
+  startSec: number;
+  endSec: number;
+  durationSec: number;
+  score: number;
+  breakdown: Record<string, number>;
+  title: string;
+  reason: string;
+  text: string;
 }
 
 export interface ColorGradeParams {

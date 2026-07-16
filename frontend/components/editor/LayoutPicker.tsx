@@ -4,7 +4,7 @@ import React from "react";
 import { LAYOUT_LABELS, LayoutMode } from "@/lib/types/analyzer";
 import { useTimelineStore } from "@/lib/store/useTimelineStore";
 
-const ORDER: LayoutMode[] = ["single", "split", "fit"];
+const ORDER: LayoutMode[] = ["single", "split", "fit", "three-person", "gameplay", "screenshare"];
 
 export const LayoutPicker: React.FC = () => {
   const layoutMode = useTimelineStore((state) => state.layoutMode);

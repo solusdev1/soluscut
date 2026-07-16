@@ -22,8 +22,10 @@ out/
 backend/app/transform/assets/sample_input.mp4
 backend/app/transform/assets/bgm/*.mp3
 backend/output/
+backend/storage/
 backend/tests/fixtures/out/
 frontend/public/sample_input.mp4
+*.log
 *.mp4
 *.mkv
 *.wav

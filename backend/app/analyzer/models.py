@@ -72,11 +72,28 @@ class TranscriptResult(BaseModel):
     segments: list[TranscriptSegment]
 
 
+class Highlight(BaseModel):
+    id: str
+    start_sec: float
+    end_sec: float
+    duration_sec: float
+    score: float = Field(ge=0.0, le=100.0)
+    breakdown: dict[str, float]
+    title: str
+    reason: str
+    text: str
+
+
+class HighlightsResult(BaseModel):
+    highlights: list[Highlight]
+
+
 class AnalysisResult(BaseModel):
     metadata: VideoMetadata
     crop_keyframes_path: str
     vad_segments_path: str
     transcript_path: str
+    highlights_path: Optional[str] = None
 
 
 class VideoTooLongError(Exception):

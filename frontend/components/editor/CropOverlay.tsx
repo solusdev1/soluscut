@@ -6,22 +6,23 @@ import { interpolateCrop, useTimelineStore } from "@/lib/store/useTimelineStore"
 interface CropOverlayProps {
   displayWidth: number;
   displayHeight: number;
+  label?: string;
 }
 
-type ResizeHandle = "nw" | "ne" | "sw" | "se";
+type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 type CropGeometry = { x: number; y: number; w: number; h: number };
 type Interaction =
   | { mode: "move"; startX: number; startY: number; rect: CropGeometry }
   | { mode: "resize"; handle: ResizeHandle; startX: number; startY: number; rect: CropGeometry };
 
-const HANDLES: ResizeHandle[] = ["nw", "ne", "sw", "se"];
+const HANDLES: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
 /**
  * Janela de corte do layout vertical. O interior move a seleção em X/Y e os
  * cantos redimensionam mantendo a proporção atual. Cada alteração é gravada
  * como keyframe no ponto atual da timeline.
  */
-export const CropOverlay: React.FC<CropOverlayProps> = ({ displayWidth, displayHeight }) => {
+export const CropOverlay: React.FC<CropOverlayProps> = ({ displayWidth, displayHeight, label = "9:16 · AJUSTÁVEL" }) => {
   const { cropKeyframes, playheadSec, sourceWidth, sourceHeight } = useTimelineStore();
   const addOrUpdate = useTimelineStore((state) => state.addOrUpdateKeyframeAtPlayhead);
   const setDragging = useTimelineStore((state) => state.setDraggingCrop);
@@ -79,21 +80,16 @@ export const CropOverlay: React.FC<CropOverlayProps> = ({ displayWidth, displayH
       }
 
       const { handle, rect } = active;
-      const aspect = rect.w / rect.h;
-      const horizontalWidth = rect.w + (handle.includes("e") ? dx : -dx);
-      const verticalWidth = (rect.h + (handle.includes("s") ? dy : -dy)) * aspect;
-      const proposedWidth = Math.abs(horizontalWidth - rect.w) >= Math.abs(verticalWidth - rect.w)
-        ? horizontalWidth
-        : verticalWidth;
-
-      const horizontalLimit = handle.includes("e") ? sourceWidth - rect.x : rect.x + rect.w;
-      const verticalLimit = (handle.includes("s") ? sourceHeight - rect.y : rect.y + rect.h) * aspect;
-      const maxWidth = Math.max(1, Math.min(horizontalLimit, verticalLimit));
-      const minWidth = Math.min(Math.max(96, sourceWidth * 0.12), maxWidth);
-      const width = Math.max(minWidth, Math.min(proposedWidth, maxWidth));
-      const height = width / aspect;
-      const x = handle.includes("w") ? rect.x + rect.w - width : rect.x;
-      const y = handle.includes("n") ? rect.y + rect.h - height : rect.y;
+      const minWidth = Math.min(Math.max(96, sourceWidth * 0.08), sourceWidth);
+      const minHeight = Math.min(Math.max(96, sourceHeight * 0.08), sourceHeight);
+      let width = rect.w;
+      let height = rect.h;
+      let x = rect.x;
+      let y = rect.y;
+      if (handle.includes("e")) width = Math.max(minWidth, Math.min(rect.w + dx, sourceWidth - rect.x));
+      if (handle.includes("w")) { width = Math.max(minWidth, Math.min(rect.w - dx, rect.x + rect.w)); x = rect.x + rect.w - width; }
+      if (handle.includes("s")) height = Math.max(minHeight, Math.min(rect.h + dy, sourceHeight - rect.y));
+      if (handle.includes("n")) { height = Math.max(minHeight, Math.min(rect.h - dy, rect.y + rect.h)); y = rect.y + rect.h - height; }
 
       addOrUpdate({
         x: Math.round(x),
@@ -135,7 +131,7 @@ export const CropOverlay: React.FC<CropOverlayProps> = ({ displayWidth, displayH
       }}
       title={`Corte vertical em ${playheadSec.toFixed(2)}s — arraste para mover`}
     >
-      <span className="crop-overlay-label" style={{ color: borderColor }}>9:16 · AJUSTÁVEL</span>
+      <span className="crop-overlay-label" style={{ color: borderColor }}>{label}</span>
       <span className="crop-move-hint">Arraste para mover</span>
       {HANDLES.map((handle) => (
         <button
